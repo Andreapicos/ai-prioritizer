@@ -565,8 +565,39 @@ button {
         flex-direction: column;
     }
 
+    .input-row-secondary {
+        flex-direction: column;
+    }
+
+    .input-with-icon {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .input-with-icon .task-date-input {
+        width: 100%;
+        min-width: 0;
+        font-size: 0.85rem;
+    }
+
     .btn-primary {
         padding: 1rem;
+    }
+
+    .notification-banner-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .confirm-content {
+        width: 95%;
+        max-width: 95%;
+    }
+
+    .edit-inputs input,
+    .edit-inputs select {
+        width: 100% !important;
+        box-sizing: border-box;
     }
 }
 
@@ -713,10 +744,14 @@ button {
     border: none;
     background: transparent;
     padding: 0.75rem 0.25rem;
+    flex: 1;
+    min-width: 0;
 }
 
 .input-with-icon select.task-date-input {
     cursor: pointer;
+    flex: 1;
+    min-width: 0;
 }
 
 .task-date-display {
