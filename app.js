@@ -450,13 +450,14 @@ ${JSON.stringify(taskData)}
 `;
 
     try {
-        // Usiamo gemini-2.0-flash che ha limiti più alti nel piano gratuito
-        const modelName = 'models/gemini-2.0-flash';
+        // Modelli da provare (in ordine)
+        const models = ['models/gemini-1.5-flash', 'models/gemini-1.5-flash-8b'];
+        let currentModelIndex = 0;
 
-        aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sto chiedendo all'AI...`;
+        aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analisi in corso...`;
 
-        // Funzione con retry automatico in caso di rate limit
-        async function callGeminiWithRetry(retries = 2) {
+        async function callGemini(retries = 2) {
+            const modelName = models[currentModelIndex];
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -466,23 +467,31 @@ ${JSON.stringify(taskData)}
                 })
             });
 
-            if (response.status === 429 && retries > 0) {
-                // Rate limit: aspetta 10 secondi e riprova
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Troppo traffico, riprovo tra pochi secondi...`;
-                await new Promise(r => setTimeout(r, 10000));
-                return callGeminiWithRetry(retries - 1);
+            // Se abbiamo superato il limite (429) o c'è un errore del server (500/503)
+            if ((response.status === 429 || response.status >= 500) && retries > 0) {
+                const waitTime = 12000; // 12 secondi
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Google è occupato, riprovo tra 10s...`;
+                await new Promise(r => setTimeout(r, waitTime));
+                return callGemini(retries - 1);
+            }
+
+            // Se il primo modello fallisce del tutto o esaurisce i retry, proviamo il secondo modello (8b)
+            if (!response.ok && currentModelIndex < models.length - 1) {
+                console.log(`Modello ${modelName} fallito, provo il modello di scorta...`);
+                currentModelIndex++;
+                return callGemini(2); // Ricomincia con 2 retry per il nuovo modello
             }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.error?.message || `Codice: ${response.status}`;
-                throw new Error(`\nGoogle dice: ${errorMessage}`);
+                const errorMessage = errorData.error?.message || `Errore: ${response.status}`;
+                throw new Error(errorMessage);
             }
 
             return response.json();
         }
 
-        const data = await callGeminiWithRetry();
+        const data = await callGemini();
 
         // Estrai il testo della risposta AI
         const aiResponseText = data.candidates[0].content.parts[0].text;
