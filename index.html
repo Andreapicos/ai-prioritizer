@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Task Prioritizer</title>
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d1117">
+    <link rel="apple-touch-icon" href="logo.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="background-animation">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <img src="logo.png" alt="AI Prioritizer Logo"
+                    style="width: 80px; height: 80px; border-radius: 20px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1);">
+            </div>
+            <h1>AI Prioritizer</h1>
+            <p>Lascia che l'Intelligenza Artificiale organizzi la tua giornata.</p>
+            <div class="app-description"
+                style="margin-top: 1rem; font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); padding: 1rem; border-radius: var(--border-radius-md);">
+                Questa applicazione utilizza l'Intelligenza Artificiale di Google Gemini per analizzare e riordinare i
+                tuoi impegni quotidiani. Inserisci le tue attività, aggiungi la tua API Key e clicca su "Riordina con
+                AI" per ottenere una lista priorizzata in base a urgenza e importanza.
+            </div>
+        </header>
+
+        <div class="api-config">
+            <input type="password" id="api-key-input" placeholder="Incolla qui la tua API Key di Google Gemini..."
+                autocomplete="off">
+            <button id="save-key-btn" class="btn-primary" style="padding: 0 1rem; font-size: 0.85rem;">Salva</button>
+        </div>
+
+        <section class="input-section glass-panel">
+            <div class="input-group">
+                <input type="text" id="task-input" placeholder="Cosa devi fare? (es. Inviare email al capo)"
+                    autocomplete="off">
+                <button id="add-btn" class="btn-primary">
+                    <i class="fa-solid fa-plus"></i> Aggiungi
+                </button>
+            </div>
+            <button id="ai-sort-btn" class="btn-ai-magic">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI
+            </button>
+        </section>
+
+        <section class="tasks-section">
+            <div class="section-header">
+                <h2>I Tuoi Impegni</h2>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span class="task-count" id="task-count">0 task</span>
+                    <button id="delete-all-btn" class="btn-icon delete" title="Svuota lista" style="display: none;">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="loader" class="loader hidden">
+                <div class="spinner"></div>
+                <p>L'AI sta analizzando le tue priorità...</p>
+            </div>
+
+            <ul id="task-list" class="task-list">
+                <!-- Tasks will be injected here via JavaScript -->
+            </ul>
+        </section>
+    </div>
+    <script src="app.js"></script>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm" class="custom-confirm hidden">
+        <div class="confirm-content glass-panel">
+            <h3 id="confirm-title">Conferma Azione</h3>
+            <p id="confirm-message">Sei sicuro di voler procedere?</p>
+            <div class="confirm-actions">
+                <button id="confirm-cancel-btn" class="btn-secondary">Annulla</button>
+                <button id="confirm-ok-btn" class="btn-danger">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+</body>
+
+</html>

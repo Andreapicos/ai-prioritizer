@@ -1,0 +1,17 @@
+{
+  "name": "AI Task Prioritizer",
+  "short_name": "AI Prioritizer",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "description": "Lascia che l'Intelligenza Artificiale organizzi la tua giornata e definisca le tue priorità.",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Task Prioritizer</title>
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-animation">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="app-container">
+        <header>
+            <h1><i class="fa-solid fa-bolt text-gradient"></i> AI Prioritizer</h1>
+            <p>Lascia che l'Intelligenza Artificiale organizzi la tua giornata.</p>
+        </header>
+
+        <section class="input-section glass-panel">
+            <div class="input-group">
+                <input type="text" id="task-input" placeholder="Cosa devi fare? (es. Inviare email al capo)" autocomplete="off">
+                <button id="add-btn" class="btn-primary">
+                    <i class="fa-solid fa-plus"></i> Aggiungi
+                </button>
+            </div>
+            <button id="ai-sort-btn" class="btn-ai-magic">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI
+            </button>
+        </section>
+
+        <section class="tasks-section">
+            <div class="section-header">
+                <h2>I Tuoi Impegni</h2>
+                <span class="task-count" id="task-count">0 task</span>
+            </div>
+            
+            <div id="loader" class="loader hidden">
+                <div class="spinner"></div>
+                <p>L'AI sta analizzando le tue priorità...</p>
+            </div>
+
+            <ul id="task-list" class="task-list">
+                <!-- Tasks will be injected here via JavaScript -->
+            </ul>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
