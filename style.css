@@ -687,6 +687,38 @@ button {
     box-shadow: 0 0 0 2px rgba(123, 44, 191, 0.3);
 }
 
+.input-row-secondary {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.input-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-lg);
+    padding: 0 0.75rem;
+}
+
+.input-with-icon>i {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.input-with-icon .task-date-input {
+    border: none;
+    background: transparent;
+    padding: 0.75rem 0.25rem;
+}
+
+.input-with-icon select.task-date-input {
+    cursor: pointer;
+}
+
 .task-date-display {
     font-size: 0.8rem;
     color: var(--text-secondary);
@@ -703,6 +735,52 @@ button {
 .task-item.expired .task-date-display {
     color: var(--priority-high);
     font-weight: 600;
+}
+
+/* =========================================================
+   NOTIFICATION BANNER
+   ========================================================= */
+.notification-banner {
+    background: linear-gradient(135deg, rgba(123, 44, 191, 0.2), rgba(79, 70, 229, 0.2));
+    border: 1px solid rgba(123, 44, 191, 0.3);
+    border-radius: var(--border-radius-lg);
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    animation: fadeInDown 0.5s ease-out;
+}
+
+.notification-banner.hidden {
+    display: none;
+}
+
+.notification-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.notification-banner-content>i {
+    font-size: 1.3rem;
+    color: #a78bfa;
+}
+
+.notification-banner-content>span {
+    flex: 1;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* =========================================================

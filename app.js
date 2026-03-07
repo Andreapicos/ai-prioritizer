@@ -16,6 +16,7 @@ const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
 const deleteAllBtn = document.getElementById('delete-all-btn');
 const taskDateInput = document.getElementById('task-date');
+const taskReminderInput = document.getElementById('task-reminder');
 
 // Inizializza API Key se presente
 const savedKey = localStorage.getItem('gemini-api-key');
@@ -124,6 +125,7 @@ function showEditModal(task, onSaveCallback) {
     const modal = document.getElementById('custom-edit');
     const textInput = document.getElementById('edit-task-text');
     const dateInput = document.getElementById('edit-task-date');
+    const reminderInput = document.getElementById('edit-task-reminder');
     const cancelBtn = document.getElementById('edit-cancel-btn');
     const saveBtn = document.getElementById('edit-save-btn');
 
@@ -132,6 +134,7 @@ function showEditModal(task, onSaveCallback) {
     // Popola i campi con i dati attuali
     textInput.value = task.text;
     dateInput.value = task.dueDate || '';
+    reminderInput.value = task.reminderMinutes || '';
 
     const closeModal = () => {
         modal.classList.remove('show');
@@ -146,6 +149,7 @@ function showEditModal(task, onSaveCallback) {
     const handleSave = () => {
         const newText = textInput.value.trim();
         const newDate = dateInput.value;
+        const newReminder = reminderInput.value ? parseInt(reminderInput.value) : null;
 
         if (newText === '') {
             showToast("Il testo dell'impegno non può essere vuoto!", "warning");
@@ -154,7 +158,7 @@ function showEditModal(task, onSaveCallback) {
 
         closeModal();
         if (typeof onSaveCallback === 'function') {
-            setTimeout(() => onSaveCallback(newText, newDate), 200);
+            setTimeout(() => onSaveCallback(newText, newDate, newReminder), 200);
         }
     };
 
@@ -171,28 +175,68 @@ function showEditModal(task, onSaveCallback) {
 function requestNotificationPermission() {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'default') {
-        Notification.requestPermission();
+        Notification.requestPermission().then(p => {
+            if (p === 'granted') {
+                hideBanner();
+                showToast('Notifiche attivate! Riceverai i promemoria.', 'success');
+            }
+        });
     }
+}
+
+function hideBanner() {
+    const banner = document.getElementById('notification-banner');
+    if (banner) banner.classList.add('hidden');
+}
+
+// Mostra il banner solo se le notifiche non sono state ancora concesse
+function showBannerIfNeeded() {
+    if (!('Notification' in window)) return;
+    const banner = document.getElementById('notification-banner');
+    if (!banner) return;
+
+    if (Notification.permission === 'default') {
+        banner.classList.remove('hidden');
+    } else {
+        banner.classList.add('hidden');
+    }
+}
+
+// Listener per il pulsante "Attiva" nel banner
+const enableNotifBtn = document.getElementById('enable-notifications-btn');
+if (enableNotifBtn) {
+    enableNotifBtn.addEventListener('click', requestNotificationPermission);
+}
+
+// Mostra il banner all'avvio
+showBannerIfNeeded();
+
+function getReminderLabel(minutes) {
+    if (minutes == 60) return '1 ora prima';
+    if (minutes == 360) return '6 ore prima';
+    if (minutes == 1440) return '1 giorno prima';
+    return '';
 }
 
 function checkReminders() {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
     let changed = false;
 
     tasks.forEach(task => {
-        if (
-            task.dueDate &&
-            task.dueDate <= today &&
-            !task.completed &&
-            !task.reminded
-        ) {
-            // Invia la notifica di sistema
+        if (!task.dueDate || task.completed || task.reminded) return;
+        if (!task.reminderMinutes) return; // Nessun promemoria impostato
+
+        const dueTime = new Date(task.dueDate).getTime();
+        const reminderTime = dueTime - (task.reminderMinutes * 60 * 1000);
+
+        // Se siamo dopo il momento del promemoria, invia la notifica
+        if (now.getTime() >= reminderTime) {
             new Notification('\u23F0 Promemoria: AI Prioritizer', {
-                body: task.text,
+                body: `${task.text} — scade ${getReminderLabel(task.reminderMinutes)}`,
                 icon: './logo.png',
-                tag: task.id // Evita duplicati per lo stesso task
+                tag: task.id
             });
 
             task.reminded = true;
@@ -205,9 +249,9 @@ function checkReminders() {
     }
 }
 
-// Controlla i promemoria all'avvio e poi ogni 30 minuti
-setTimeout(checkReminders, 3000); // 3 secondi dopo il caricamento
-setInterval(checkReminders, 30 * 60 * 1000); // Ogni 30 minuti
+// Controlla i promemoria all'avvio e poi ogni 5 minuti
+setTimeout(checkReminders, 3000);
+setInterval(checkReminders, 5 * 60 * 1000);
 
 // =========================================================
 // CORE FUNCTIONS
@@ -216,29 +260,32 @@ setInterval(checkReminders, 30 * 60 * 1000); // Ogni 30 minuti
 function addTask() {
     const text = taskInput.value.trim();
     const dueDate = taskDateInput.value;
+    const reminderMinutes = taskReminderInput.value ? parseInt(taskReminderInput.value) : null;
     if (!text) return;
 
     const newTask = {
         id: Date.now().toString(),
         text: text,
         dueDate: dueDate || null,
+        reminderMinutes: reminderMinutes,
         completed: false,
-        priority: null, // 1 (High), 2 (Medium), 3 (Low)
+        priority: null,
         aiReasoning: null,
         reminded: false
     };
 
-    tasks.unshift(newTask); // Add to top of list
+    tasks.unshift(newTask);
     taskInput.value = '';
     taskDateInput.value = '';
+    taskReminderInput.value = '';
 
-    // Chiedi il permesso per le notifiche se l'utente ha inserito una data
-    if (dueDate) {
+    // Chiedi il permesso per le notifiche se l'utente ha scelto un promemoria
+    if (reminderMinutes) {
         requestNotificationPermission();
     }
 
     renderTasks();
-    checkReminders(); // Controlla subito se il task è già scaduto
+    checkReminders();
 }
 
 function toggleComplete(id) {
@@ -326,11 +373,14 @@ function editTask(id) {
     const taskIndex = tasks.findIndex(t => t.id === id);
     if (taskIndex === -1) return;
 
-    showEditModal(tasks[taskIndex], (newText, newDate) => {
+    showEditModal(tasks[taskIndex], (newText, newDate, newReminder) => {
         tasks[taskIndex].text = newText;
         tasks[taskIndex].dueDate = newDate || null;
+        tasks[taskIndex].reminderMinutes = newReminder;
+        tasks[taskIndex].reminded = false; // Reset per il nuovo promemoria
         renderTasks();
         showToast("Impegno aggiornato con successo!", "success");
+        checkReminders();
     });
 }
 
@@ -467,9 +517,9 @@ function renderTasks() {
     tasks.forEach((task, index) => {
         const li = document.createElement('li');
 
-        // Check if expired
-        const today = new Date().toISOString().split('T')[0];
-        const isExpired = !task.completed && task.dueDate && task.dueDate < today;
+        // Check if expired (usando datetime)
+        const now = new Date();
+        const isExpired = !task.completed && task.dueDate && new Date(task.dueDate) < now;
 
         // Classes for styling
         li.className = `task-item ${task.completed ? 'completed' : ''} ${isExpired ? 'expired' : ''}`;
@@ -499,7 +549,9 @@ function renderTasks() {
         if (task.dueDate) {
             const dateObj = new Date(task.dueDate);
             const formattedDate = dateObj.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
-            dateHTML = `<div class="task-date-display"><i class="fa-solid fa-calendar-day"></i> ${formattedDate}</div>`;
+            const formattedTime = dateObj.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+            const reminderLabel = task.reminderMinutes ? `<span style="margin-left: 6px; opacity: 0.7;"><i class="fa-solid fa-bell" style="font-size: 0.7rem;"></i> ${getReminderLabel(task.reminderMinutes)}</span>` : '';
+            dateHTML = `<div class="task-date-display"><i class="fa-solid fa-calendar-day"></i> ${formattedDate} alle ${formattedTime}${reminderLabel}</div>`;
         }
 
         li.innerHTML = `

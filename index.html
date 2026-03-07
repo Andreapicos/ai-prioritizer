@@ -50,14 +50,40 @@
             <button id="save-key-btn" class="btn-primary" style="padding: 0 1rem; font-size: 0.85rem;">Salva</button>
         </div>
 
+        <!-- Notification Permission Banner -->
+        <div id="notification-banner" class="notification-banner hidden">
+            <div class="notification-banner-content">
+                <i class="fa-solid fa-bell"></i>
+                <span>Attiva le notifiche per ricevere promemoria sulle scadenze!</span>
+                <button id="enable-notifications-btn" class="btn-primary"
+                    style="padding: 0.5rem 1rem; font-size: 0.85rem; white-space: nowrap;">
+                    <i class="fa-solid fa-bell"></i> Attiva
+                </button>
+            </div>
+        </div>
+
         <section class="input-section glass-panel">
             <div class="input-group">
                 <input type="text" id="task-input" placeholder="Cosa devi fare? (es. Inviare email al capo)"
                     autocomplete="off">
-                <input type="date" id="task-date" class="task-date-input">
                 <button id="add-btn" class="btn-primary">
                     <i class="fa-solid fa-plus"></i> Aggiungi
                 </button>
+            </div>
+            <div class="input-row-secondary">
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-calendar-day"></i>
+                    <input type="datetime-local" id="task-date" class="task-date-input">
+                </div>
+                <div class="input-with-icon">
+                    <i class="fa-solid fa-bell"></i>
+                    <select id="task-reminder" class="task-date-input">
+                        <option value="">Nessun promemoria</option>
+                        <option value="60">1 ora prima</option>
+                        <option value="360">6 ore prima</option>
+                        <option value="1440">1 giorno prima</option>
+                    </select>
+                </div>
             </div>
             <button id="ai-sort-btn" class="btn-ai-magic">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI
@@ -105,7 +131,13 @@
             <h3>Modifica Impegno</h3>
             <div class="edit-inputs">
                 <input type="text" id="edit-task-text" placeholder="Nome impegno">
-                <input type="date" id="edit-task-date" class="task-date-input" style="width: 100%;">
+                <input type="datetime-local" id="edit-task-date" class="task-date-input" style="width: 100%;">
+                <select id="edit-task-reminder" class="task-date-input" style="width: 100%;">
+                    <option value="">Nessun promemoria</option>
+                    <option value="60">1 ora prima</option>
+                    <option value="360">6 ore prima</option>
+                    <option value="1440">1 giorno prima</option>
+                </select>
             </div>
             <div class="confirm-actions" style="margin-top: 1.5rem;">
                 <button id="edit-cancel-btn" class="btn-secondary">Annulla</button>
