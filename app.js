@@ -232,16 +232,25 @@ function checkReminders() {
 
         if (now.getTime() >= reminderTime) {
             if (canNotify) {
-                // Notifica di sistema
-                try {
-                    new Notification('\u23F0 Promemoria: AI Prioritizer', {
-                        body: `${task.text} — scade ${getReminderLabel(task.reminderMinutes)}`,
-                        icon: './logo.png',
-                        tag: task.id
+                // Notifica di sistema (più affidabile per Android via Service Worker)
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification('\u23F0 Promemoria: AI Prioritizer', {
+                            body: `${task.text} — scade ${getReminderLabel(task.reminderMinutes)}`,
+                            icon: './logo.png',
+                            badge: './logo.png', // Icona piccola nella barra di stato
+                            tag: task.id,
+                            vibrate: [200, 100, 200] // Vibrazione tipica
+                        });
+                    }).catch(err => {
+                        showToast(`\u23F0 Promemoria: ${task.text}`, 'warning');
                     });
-                } catch (e) {
-                    // Fallback in-app se la notifica di sistema fallisce
-                    showToast(`\u23F0 Promemoria: ${task.text}`, 'warning');
+                } else {
+                    // Fallback per browser che non supportano SW
+                    new Notification('\u23F0 Promemoria: AI Prioritizer', {
+                        body: `${task.text}`,
+                        icon: './logo.png'
+                    });
                 }
             } else {
                 // Fallback: notifica dentro l'app
