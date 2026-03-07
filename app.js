@@ -165,6 +165,51 @@ function showEditModal(task, onSaveCallback) {
 }
 
 // =========================================================
+// NOTIFICATION REMINDERS
+// =========================================================
+
+function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+}
+
+function checkReminders() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const today = new Date().toISOString().split('T')[0];
+    let changed = false;
+
+    tasks.forEach(task => {
+        if (
+            task.dueDate &&
+            task.dueDate <= today &&
+            !task.completed &&
+            !task.reminded
+        ) {
+            // Invia la notifica di sistema
+            new Notification('\u23F0 Promemoria: AI Prioritizer', {
+                body: task.text,
+                icon: './logo.png',
+                tag: task.id // Evita duplicati per lo stesso task
+            });
+
+            task.reminded = true;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        localStorage.setItem('ai-tasks', JSON.stringify(tasks));
+    }
+}
+
+// Controlla i promemoria all'avvio e poi ogni 30 minuti
+setTimeout(checkReminders, 3000); // 3 secondi dopo il caricamento
+setInterval(checkReminders, 30 * 60 * 1000); // Ogni 30 minuti
+
+// =========================================================
 // CORE FUNCTIONS
 // =========================================================
 
@@ -179,14 +224,21 @@ function addTask() {
         dueDate: dueDate || null,
         completed: false,
         priority: null, // 1 (High), 2 (Medium), 3 (Low)
-        aiReasoning: null
+        aiReasoning: null,
+        reminded: false
     };
 
     tasks.unshift(newTask); // Add to top of list
     taskInput.value = '';
     taskDateInput.value = '';
 
+    // Chiedi il permesso per le notifiche se l'utente ha inserito una data
+    if (dueDate) {
+        requestNotificationPermission();
+    }
+
     renderTasks();
+    checkReminders(); // Controlla subito se il task è già scaduto
 }
 
 function toggleComplete(id) {
