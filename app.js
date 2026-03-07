@@ -219,25 +219,34 @@ function getReminderLabel(minutes) {
 }
 
 function checkReminders() {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
     const now = new Date();
     let changed = false;
+    const canNotify = ('Notification' in window) && Notification.permission === 'granted';
 
     tasks.forEach(task => {
         if (!task.dueDate || task.completed || task.reminded) return;
-        if (!task.reminderMinutes) return; // Nessun promemoria impostato
+        if (!task.reminderMinutes) return;
 
         const dueTime = new Date(task.dueDate).getTime();
         const reminderTime = dueTime - (task.reminderMinutes * 60 * 1000);
 
-        // Se siamo dopo il momento del promemoria, invia la notifica
         if (now.getTime() >= reminderTime) {
-            new Notification('\u23F0 Promemoria: AI Prioritizer', {
-                body: `${task.text} — scade ${getReminderLabel(task.reminderMinutes)}`,
-                icon: './logo.png',
-                tag: task.id
-            });
+            if (canNotify) {
+                // Notifica di sistema
+                try {
+                    new Notification('\u23F0 Promemoria: AI Prioritizer', {
+                        body: `${task.text} — scade ${getReminderLabel(task.reminderMinutes)}`,
+                        icon: './logo.png',
+                        tag: task.id
+                    });
+                } catch (e) {
+                    // Fallback in-app se la notifica di sistema fallisce
+                    showToast(`\u23F0 Promemoria: ${task.text}`, 'warning');
+                }
+            } else {
+                // Fallback: notifica dentro l'app
+                showToast(`\u23F0 Promemoria: ${task.text}`, 'warning');
+            }
 
             task.reminded = true;
             changed = true;
@@ -432,39 +441,39 @@ ${JSON.stringify(taskData)}
 `;
 
     try {
-        // 1. Diciamo all'API di dirci quali modelli la tua chiave può effettivamente usare!
-        const modelListRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-        if (!modelListRes.ok) throw new Error("Impossibile leggere i modelli Google. La chiave potrebbe non essere attiva.");
+        // Usiamo gemini-2.0-flash che ha limiti più alti nel piano gratuito
+        const modelName = 'models/gemini-2.0-flash';
 
-        const modelsData = await modelListRes.json();
-        // Filtriamo e prendiamo il primo modello disponibile che supporti la generazione testo
-        const validModels = modelsData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+        aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sto chiedendo all'AI...`;
 
-        if (validModels.length === 0) throw new Error("Il tuo account non ha modelli abilitati per la generazione.");
+        // Funzione con retry automatico in caso di rate limit
+        async function callGeminiWithRetry(retries = 2) {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: { temperature: 0.1 }
+                })
+            });
 
-        // Prendiamo il primo nome utile (es: "models/gemini-1.5-flash")
-        const dynamicModelName = validModels.find(m => m.name.includes("gemini"))?.name || validModels[0].name;
+            if (response.status === 429 && retries > 0) {
+                // Rate limit: aspetta 10 secondi e riprova
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Troppo traffico, riprovo tra pochi secondi...`;
+                await new Promise(r => setTimeout(r, 10000));
+                return callGeminiWithRetry(retries - 1);
+            }
 
-        aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sto chiedendo a ${dynamicModelName.split('/')[1]}...`;
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.error?.message || `Codice: ${response.status}`;
+                throw new Error(`\nGoogle dice: ${errorMessage}`);
+            }
 
-        // 2. Chiamata API REST a Gemini usando il modello esatto appena trovato!
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${dynamicModelName}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: { temperature: 0.1 } // Bassa temperatura per risposte più logiche
-            })
-        });
-
-        if (!response.ok) {
-            // Estraiamo il vero errore che ci restituisce Google per capire cosa non va!
-            const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.error?.message || `Codice: ${response.status}`;
-            throw new Error(`\nGoogle dice: ${errorMessage}`);
+            return response.json();
         }
 
-        const data = await response.json();
+        const data = await callGeminiWithRetry();
 
         // Estrai il testo della risposta AI
         const aiResponseText = data.candidates[0].content.parts[0].text;
