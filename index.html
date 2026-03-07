@@ -54,6 +54,7 @@
             <div class="input-group">
                 <input type="text" id="task-input" placeholder="Cosa devi fare? (es. Inviare email al capo)"
                     autocomplete="off">
+                <input type="date" id="task-date" class="task-date-input">
                 <button id="add-btn" class="btn-primary">
                     <i class="fa-solid fa-plus"></i> Aggiungi
                 </button>
@@ -94,6 +95,21 @@
             <div class="confirm-actions">
                 <button id="confirm-cancel-btn" class="btn-secondary">Annulla</button>
                 <button id="confirm-ok-btn" class="btn-danger">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Edit Modal -->
+    <div id="custom-edit" class="custom-confirm hidden">
+        <div class="confirm-content glass-panel">
+            <h3>Modifica Impegno</h3>
+            <div class="edit-inputs">
+                <input type="text" id="edit-task-text" placeholder="Nome impegno">
+                <input type="date" id="edit-task-date" class="task-date-input" style="width: 100%;">
+            </div>
+            <div class="confirm-actions" style="margin-top: 1.5rem;">
+                <button id="edit-cancel-btn" class="btn-secondary">Annulla</button>
+                <button id="edit-save-btn" class="btn-primary" style="flex: 1;">Salva Modifiche</button>
             </div>
         </div>
     </div>

@@ -15,6 +15,7 @@ const loader = document.getElementById('loader');
 const apiKeyInput = document.getElementById('api-key-input');
 const saveKeyBtn = document.getElementById('save-key-btn');
 const deleteAllBtn = document.getElementById('delete-all-btn');
+const taskDateInput = document.getElementById('task-date');
 
 // Inizializza API Key se presente
 const savedKey = localStorage.getItem('gemini-api-key');
@@ -116,16 +117,66 @@ function showConfirm(message, onConfirmCallback) {
 }
 
 // =========================================================
+// CUSTOM EDIT MODAL
+// =========================================================
+
+function showEditModal(task, onSaveCallback) {
+    const modal = document.getElementById('custom-edit');
+    const textInput = document.getElementById('edit-task-text');
+    const dateInput = document.getElementById('edit-task-date');
+    const cancelBtn = document.getElementById('edit-cancel-btn');
+    const saveBtn = document.getElementById('edit-save-btn');
+
+    if (!modal) return;
+
+    // Popola i campi con i dati attuali
+    textInput.value = task.text;
+    dateInput.value = task.dueDate || '';
+
+    const closeModal = () => {
+        modal.classList.remove('show');
+        cancelBtn.removeEventListener('click', handleCancel);
+        saveBtn.removeEventListener('click', handleSave);
+    };
+
+    const handleCancel = () => {
+        closeModal();
+    };
+
+    const handleSave = () => {
+        const newText = textInput.value.trim();
+        const newDate = dateInput.value;
+
+        if (newText === '') {
+            showToast("Il testo dell'impegno non può essere vuoto!", "warning");
+            return;
+        }
+
+        closeModal();
+        if (typeof onSaveCallback === 'function') {
+            setTimeout(() => onSaveCallback(newText, newDate), 200);
+        }
+    };
+
+    cancelBtn.addEventListener('click', handleCancel);
+    saveBtn.addEventListener('click', handleSave);
+
+    modal.classList.add('show');
+}
+
+// =========================================================
 // CORE FUNCTIONS
 // =========================================================
 
 function addTask() {
     const text = taskInput.value.trim();
+    const dueDate = taskDateInput.value;
     if (!text) return;
 
     const newTask = {
         id: Date.now().toString(),
         text: text,
+        dueDate: dueDate || null,
         completed: false,
         priority: null, // 1 (High), 2 (Medium), 3 (Low)
         aiReasoning: null
@@ -133,6 +184,7 @@ function addTask() {
 
     tasks.unshift(newTask); // Add to top of list
     taskInput.value = '';
+    taskDateInput.value = '';
 
     renderTasks();
 }
@@ -222,11 +274,12 @@ function editTask(id) {
     const taskIndex = tasks.findIndex(t => t.id === id);
     if (taskIndex === -1) return;
 
-    const newText = prompt("Modifica il testo dell'impegno:", tasks[taskIndex].text);
-    if (newText !== null && newText.trim() !== '') {
-        tasks[taskIndex].text = newText.trim();
+    showEditModal(tasks[taskIndex], (newText, newDate) => {
+        tasks[taskIndex].text = newText;
+        tasks[taskIndex].dueDate = newDate || null;
         renderTasks();
-    }
+        showToast("Impegno aggiornato con successo!", "success");
+    });
 }
 
 // =========================================================
@@ -257,13 +310,20 @@ async function prioritizeWithAI() {
     aiSortBtn.disabled = true;
     aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Connessione ai server Google...`;
 
-    // Costruiamo la domanda (prompt) per Gemini
-    const taskData = uncompletedTasks.map(t => ({ id: t.id, text: t.text }));
+    // Costruiamo la domanda (prompt) per Gemini con le date
+    const taskData = uncompletedTasks.map(t => ({
+        id: t.id,
+        text: t.text,
+        scadenza: t.dueDate || "Nessuna"
+    }));
+
     const promptText = `
-Sei un assistente per la produttività. Analizza questi task e assegna una priorità (1=Alta urgenza/importanza, 2=Media, 3=Bassa).
-Per ogni task aggiungi una brevissima motivazione (max 10 parole).
-Rispondi ESATTAMENTE e SOLO con un array JSON valido, NIENTE formattazione markdown (niente backticks o \`\`\`json).
-Esempio output: [{"id":"123", "priority":1, "aiReasoning":"Riunione di lavoro"}]
+Sei un assistente per la produttività esperto. Analizza questi task e assegna una priorità (1=Alta urgenza/importanza, 2=Media, 3=Bassa).
+IMPORTANTE: Tieni conto delle date di scadenza. Un task con scadenza vicina o passata deve avere priorità alta (1 o 2).
+Per ogni task aggiungi una brevissima motivazione (max 10 parole) spiegando la priorità in base a urgenza e data.
+Rispondi ESATTAMENTE e SOLO con un array JSON valido, NIENTE formattazione markdown.
+
+Esempio output: [{"id":"123", "priority":1, "aiReasoning":"Scade oggi, molto urgente"}]
 
 Task da analizzare:
 ${JSON.stringify(taskData)}
@@ -355,8 +415,12 @@ function renderTasks() {
     tasks.forEach((task, index) => {
         const li = document.createElement('li');
 
+        // Check if expired
+        const today = new Date().toISOString().split('T')[0];
+        const isExpired = !task.completed && task.dueDate && task.dueDate < today;
+
         // Classes for styling
-        li.className = `task-item ${task.completed ? 'completed' : ''}`;
+        li.className = `task-item ${task.completed ? 'completed' : ''} ${isExpired ? 'expired' : ''}`;
         if (task.priority) li.classList.add(`priority-${task.priority}`);
         if (task.aiReasoning) li.classList.add('has-ai');
 
@@ -378,11 +442,20 @@ function renderTasks() {
         else if (task.priority === 2) priorityLabel = '🟡 Media';
         else if (task.priority === 3) priorityLabel = '🔵 Bassa';
 
+        // Date Display HTML
+        let dateHTML = '';
+        if (task.dueDate) {
+            const dateObj = new Date(task.dueDate);
+            const formattedDate = dateObj.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+            dateHTML = `<div class="task-date-display"><i class="fa-solid fa-calendar-day"></i> ${formattedDate}</div>`;
+        }
+
         li.innerHTML = `
             <div class="custom-checkbox" onclick="toggleComplete('${task.id}')"></div>
             <div class="task-content">
                 <span class="priority-badge">${priorityLabel}</span>
                 <span class="task-text">${escapeHTML(task.text)}</span>
+                ${dateHTML}
                 ${task.aiReasoning ? `<div class="task-reasoning"><i class="fa-solid fa-robot"></i> ${task.aiReasoning}</div>` : ''}
             </div>
             <div class="task-actions">
