@@ -485,16 +485,35 @@ function escapeHTML(str) {
 renderTasks();
 
 // =========================================================
-// SERVICE WORKER REGISTRATION (PWA)
+// SERVICE WORKER REGISTRATION & UPDATE (PWA)
 // =========================================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
-            .then(registration => {
-                console.log('ServiceWorker registrato con successo con scope: ', registration.scope);
+            .then(reg => {
+                console.log('SW registrato.');
+
+                // Se c'è un aggiornamento, ricarichiamo la pagina quando il nuovo SW prende il controllo
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Nuovo contenuto disponibile!
+                            console.log('Nuova versione rilevata. Ricarico...');
+                            window.location.reload();
+                        }
+                    });
+                });
             })
-            .catch(err => {
-                console.error('Registrazione ServiceWorker fallita: ', err);
-            });
+            .catch(err => console.error('Errore SW:', err));
+    });
+
+    // Evento che scatta quando un nuovo SW prende il controllo
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            window.location.reload();
+            refreshing = true;
+        }
     });
 }

@@ -1,50 +1,60 @@
-const CACHE_NAME = 'ai-prioritizer-v1';
+const CACHE_NAME = 'ai-prioritizer-v2';
 const urlsToCache = [
     './',
     './index.html',
     './style.css',
     './app.js',
-    './logo.png'
+    './manifest.json'
 ];
 
-// Installa il service worker e aggiungi i file alla cache
+// Installa il service worker
 self.addEventListener('install', event => {
+    // Forza il Service Worker a diventare attivo immediatamente
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('Cache aperta con successo');
+                console.log('Cache v2 aperta');
                 return cache.addAll(urlsToCache);
             })
     );
 });
 
-// Intercetta le richieste di rete per servire i file dalla cache se disponibili
+// Strategia Stale-While-Revalidate: serve dalla cache e aggiorna in background
 self.addEventListener('fetch', event => {
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Se troviamo il file nella cache, lo restituiamo subito
-                if (response) {
+        caches.open(CACHE_NAME).then(cache => {
+            return cache.match(event.request).then(response => {
+                const fetchPromise = fetch(event.request).then(networkResponse => {
+                    // Salva la versione aggiornata nella cache per la prossima volta
+                    if (networkResponse && networkResponse.status === 200) {
+                        cache.put(event.request, networkResponse.clone());
+                    }
+                    return networkResponse;
+                }).catch(() => {
+                    // Fallback se siamo offline e il file non è in cache
                     return response;
-                }
-                // Altrimenti, facciamo la normale richiesta di rete
-                return fetch(event.request);
-            })
+                });
+
+                // Restituisce la cache subito (se c'è), altrimenti aspetta la rete
+                return response || fetchPromise;
+            });
+        })
     );
 });
 
-// Aggiorna la cache se cambia la versione del service worker
+// Pulisci le vecchie cache
 self.addEventListener('activate', event => {
-    const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('Eliminandola vecchia cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim()) // Prendi il controllo immediato delle pagine aperte
     );
 });
