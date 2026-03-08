@@ -229,40 +229,76 @@ function checkReminders() {
         const dueTime = new Date(task.dueDate).getTime();
         const reminderTime = dueTime - (task.reminderMinutes * 60 * 1000);
 
+        // Se il momento del promemoria è passato, mostriamo la notifica subito
         if (now.getTime() >= reminderTime) {
-            if (canNotify) {
-                // Notifica di sistema (più affidabile per Android via Service Worker)
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.ready.then(registration => {
-                        registration.showNotification('\u23F0 Promemoria: AI Prioritizer', {
-                            body: `${task.text} — scade ${getReminderLabel(task.reminderMinutes)}`,
-                            icon: './logo.png',
-                            badge: './logo.png', // Icona piccola nella barra di stato
-                            tag: task.id,
-                            vibrate: [200, 100, 200] // Vibrazione tipica
-                        });
-                    }).catch(err => {
-                        showToast(`\u23F0 Promemoria: ${task.text}`, 'warning');
-                    });
-                } else {
-                    // Fallback per browser che non supportano SW
-                    new Notification('\u23F0 Promemoria: AI Prioritizer', {
-                        body: `${task.text}`,
-                        icon: './logo.png'
-                    });
-                }
-            } else {
-                // Fallback: notifica dentro l'app
-                showToast(`\u23F0 Promemoria: ${task.text}`, 'warning');
-            }
-
+            triggerNotification(task);
             task.reminded = true;
             changed = true;
+        } else {
+            // Se invece il promemoria è nel futuro, proviamo a programmarlo (Trigger API)
+            scheduleBackgroundReminder(task);
         }
     });
 
     if (changed) {
         localStorage.setItem('ai-tasks', JSON.stringify(tasks));
+        renderTasks();
+    }
+}
+
+// Funzione dedicata per mostrare la notifica subito
+function triggerNotification(task) {
+    if (Notification.permission !== 'granted') return;
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification('\u23F0 Promemoria: AI Prioritizer', {
+                body: `${task.text} — scade tra poco`,
+                icon: './logo.png',
+                badge: './logo.png',
+                tag: task.id,
+                vibrate: [200, 100, 200],
+                data: { taskId: task.id }
+            });
+        });
+    } else {
+        new Notification('\u23F0 Promemoria: AI Prioritizer', {
+            body: `${task.text}`,
+            icon: './logo.png'
+        });
+    }
+}
+
+// PROGRAMMAZIONE BACKGROUND (Per Android/Chrome quando l'app è chiusa)
+function scheduleBackgroundReminder(task) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!('serviceWorker' in navigator)) return;
+
+    const dueTime = new Date(task.dueDate).getTime();
+    const reminderTime = dueTime - (task.reminderMinutes * 60 * 1000);
+
+    // Verifichiamo se il browser supporta i Triggers (PWA Background Notifications)
+    const hasTriggerAPI = ('showTrigger' in Notification.prototype) || (window.TimestampTrigger !== undefined);
+
+    if (hasTriggerAPI) {
+        navigator.serviceWorker.ready.then(registration => {
+            try {
+                // Se non esiste TimestampTrigger, il try/catch ci salverà
+                const trigger = new TimestampTrigger(reminderTime);
+                registration.showNotification('\u23F0 Promemoria: AI Prioritizer', {
+                    body: `${task.text} — promemoria programmato`,
+                    icon: './logo.png',
+                    badge: './logo.png',
+                    tag: task.id,
+                    vibrate: [200, 100, 200],
+                    showTrigger: trigger,
+                    data: { taskId: task.id }
+                });
+                console.log(`PWA: Programmata notifica per ${task.text}`);
+            } catch (e) {
+                console.warn("Trigger API presente ma non utilizzabile per questo browser.", e);
+            }
+        });
     }
 }
 
