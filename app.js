@@ -1,6 +1,6 @@
 // State
 let tasks = JSON.parse(localStorage.getItem('ai-tasks')) || [];
-let discoveredModelName = null;
+let discoveredModelName = localStorage.getItem('gemini-model-name');
 let isAiCooldown = false;
 
 // DOM Elements
@@ -451,13 +451,13 @@ ${JSON.stringify(taskData)}
     try {
         // Cooldown check
         if (isAiCooldown) {
-            showToast("Attendi qualche secondo prima di riprovare (limite Google).", "warning");
+            showToast("L'IA è in pausa per riposare la quota Google. Attendi il timer.", "warning");
             return;
         }
 
         const apiKey = localStorage.getItem('gemini-api-key');
         if (!apiKey) {
-            showToast("Per favore, inserisci la tua API Key nelle impostazioni.", "warning");
+            showToast("Inserisci la tua API Key nelle impostazioni.", "warning");
             openSettings();
             return;
         }
@@ -466,8 +466,9 @@ ${JSON.stringify(taskData)}
         loader.classList.remove('hidden');
         taskList.style.display = 'none';
 
-        // 1. SCOPERTA DINAMICA DEL MODELLO (Se non già in memoria)
+        // 1. SCOPERTA DINAMICA DEL MODELLO (Uso cache se disponibile)
         if (!discoveredModelName) {
+            console.log("Ricerca modello in corso...");
             aiSortBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass fa-spin"></i> Ricerca modello...`;
             try {
                 const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
@@ -478,15 +479,15 @@ ${JSON.stringify(taskData)}
                         validModels.find(m => m.name.includes('gemini-pro')) ||
                         validModels[0];
                     discoveredModelName = bestModel.name;
+                    localStorage.setItem('gemini-model-name', discoveredModelName);
                 }
             } catch (e) {
-                console.warn("Errore discovery, uso fallback:", e);
+                console.warn("Errore discovery, uso fallback standard.");
                 discoveredModelName = 'models/gemini-1.5-flash';
             }
         }
 
         const modelName = discoveredModelName || 'models/gemini-1.5-flash';
-        console.log("Utilizzo modello:", modelName);
 
         aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analisi in corso...`;
 
@@ -500,28 +501,28 @@ ${JSON.stringify(taskData)}
                 })
             });
 
-            // Se abbiamo superato il limite di quota (429)
+            // Errore Quota (429)
             if (response.status === 429 && retries > 0) {
-                const waitTime = 20000; // 20 secondi per dare respiro a Google
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Limite Google raggiunto, attendo 20s...`;
+                const waitTime = 25000; // 25 secondi
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Limite Google: attesa 25s...`;
                 await new Promise(r => setTimeout(r, waitTime));
                 return callGemini(retries - 1);
             }
 
-            // Se c'è un errore del server Google (500, 503)
+            // Errore Server (5xx)
             if (response.status >= 500 && retries > 0) {
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Server occupato, riprovo...`;
-                await new Promise(r => setTimeout(r, 2000));
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Google occupato, riprovo...`;
+                await new Promise(r => setTimeout(r, 3000));
                 return callGemini(retries - 1);
             }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                const errorCode = errorData.error?.status || response.status;
                 const errorMessage = errorData.error?.message || "Errore sconosciuto";
 
-                if (errorCode === "RESOURCE_EXHAUSTED" || response.status === 429) {
-                    throw new Error("Hai superato il limite gratuito di Google (20 richieste al minuto). Attendi un minuto prima di riprovare.");
+                // Se Google risponde che la quota è finita
+                if (response.status === 429) {
+                    throw new Error("Hai esaurito le richieste gratuite per questo minuto (o per oggi). Google ti ha bloccato temporaneamente. Riprova tra 60 secondi.");
                 }
 
                 throw new Error(`Google dice: ${errorMessage}`);
