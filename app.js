@@ -213,20 +213,35 @@ showBannerIfNeeded();
 // DIAGNOSTICA BACKGROUND
 function updateSupportStatus() {
     const badge = document.getElementById('trigger-badge');
-    if (!badge) return;
+    if (!badge) {
+        console.warn("Badge diagnostica non trovato nel DOM.");
+        return;
+    }
 
-    const hasTriggers = ('showTrigger' in Notification.prototype) || (window.TimestampTrigger !== undefined);
+    try {
+        const hasNotificationAPI = ('Notification' in window);
+        const hasTriggers = hasNotificationAPI && (
+            ('showTrigger' in Notification.prototype) ||
+            (window.TimestampTrigger !== undefined) ||
+            (typeof TimestampTrigger !== 'undefined')
+        );
 
-    if (hasTriggers) {
-        badge.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #238636;"></i> Background: Supportato';
-        badge.title = "Il tuo telefono permette di programmare i promemoria nativi.";
-    } else {
-        badge.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color: #da3633;"></i> Background: Limitato';
-        badge.title = "Il tuo browser non supporta la chiusura totale. Tieni l'app aperta in background.";
+        if (hasTriggers) {
+            badge.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #238636;"></i> Background: Supportato';
+            badge.title = "Il tuo telefono permette di programmare i promemoria nativi.";
+        } else {
+            badge.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color: #da3633;"></i> Background: Limitato';
+            badge.title = "Il tuo browser non supporta la chiusura totale. Tieni l'app aperta in background.";
+        }
+        console.log("Stato supporto background aggiornato:", hasTriggers);
+    } catch (e) {
+        console.error("Errore durante il controllo del supporto:", e);
+        badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color: #d29922;"></i> Errore controllo';
     }
 }
 
-updateSupportStatus();
+// Esegui con un piccolo delay per sicurezza DOM
+setTimeout(updateSupportStatus, 1000);
 
 // CONTROLLA QUANDO L'APP TORNA IN PRIMO PIANO
 document.addEventListener('visibilitychange', () => {
