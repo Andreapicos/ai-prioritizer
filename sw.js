@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-prioritizer-v12';
+const CACHE_NAME = 'ai-prioritizer-v13';
 const urlsToCache = [
     './',
     './index.html',
