@@ -443,13 +443,28 @@ async function prioritizeWithAI() {
     const promptText = `Analizza questi task e assegna una priorità (1=Alta, 2=Media, 3=Bassa). Considera le scadenze vicine come priorità 1. Rispondi solo con un array JSON: [{"id":"123", "priority":1, "aiReasoning":"Motivo breve"}] \n\n Task: ${JSON.stringify(taskData)}`;
 
     try {
-        // SOLUZIONE DEFINITIVA: Nome completo e v1beta
-        localStorage.removeItem('gemini-model-name');
-        const modelPath = 'models/gemini-1.5-flash';
+        // SOLUZIONE AUTO-DIAGNOSTICA: Chiediamo a Google cosa vuole
+        aiSortBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass fa-spin"></i> Identificazione...`;
+
+        let modelName = '';
+        try {
+            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+            const listData = await listRes.json();
+            // Cerchiamo un modello che supporti generateContent
+            const found = listData.models?.find(m => m.supportedGenerationMethods.includes("generateContent"));
+            if (found) {
+                modelName = found.name;
+                console.log("Modello rilevato:", modelName);
+            } else {
+                throw new Error("Nessun modello disponibile per questa chiave.");
+            }
+        } catch (e) {
+            console.warn("Discovery fallita, scarico su fallback.");
+            modelName = 'models/gemini-1.5-flash'; // Fallback estremo
+        }
 
         async function callGemini(retries = 2) {
-            // Torniamo a v1beta che è più flessibile per i piani gratuiti
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${apiKey}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
