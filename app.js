@@ -443,11 +443,13 @@ async function prioritizeWithAI() {
     const promptText = `Analizza questi task e assegna una priorità (1=Alta, 2=Media, 3=Bassa). Considera le scadenze vicine come priorità 1. Rispondi solo con un array JSON: [{"id":"123", "priority":1, "aiReasoning":"Motivo breve"}] \n\n Task: ${JSON.stringify(taskData)}`;
 
     try {
-        // Usa il modello salvato o quello standard flash
-        const modelName = localStorage.getItem('gemini-model-name') || 'models/gemini-1.5-flash';
+        // SOLUZIONE TABULA RASA: Forziamo il modello stabile e puliamo la memoria
+        localStorage.removeItem('gemini-model-name');
+        const modelName = 'gemini-1.5-flash';
 
         async function callGemini(retries = 2) {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
+            // Usiamo la versione v1 (stabile) invece di v1beta
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -499,7 +501,7 @@ async function prioritizeWithAI() {
         // Cooldown ridotto a 10s
         isAiCooldown = true;
         let cooldownTime = 10;
-        
+
         const updateCooldownBtn = () => {
             if (cooldownTime > 0) {
                 aiSortBtn.disabled = true;
@@ -512,7 +514,7 @@ async function prioritizeWithAI() {
                 aiSortBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI';
             }
         };
-        
+
         updateCooldownBtn();
         renderTasks();
     }
