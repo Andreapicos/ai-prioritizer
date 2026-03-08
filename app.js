@@ -210,6 +210,32 @@ if (enableNotifBtn) {
 // Mostra il banner all'avvio
 showBannerIfNeeded();
 
+// DIAGNOSTICA BACKGROUND
+function updateSupportStatus() {
+    const badge = document.getElementById('trigger-badge');
+    if (!badge) return;
+
+    const hasTriggers = ('showTrigger' in Notification.prototype) || (window.TimestampTrigger !== undefined);
+
+    if (hasTriggers) {
+        badge.innerHTML = '<i class="fa-solid fa-circle-check" style="color: #238636;"></i> Background: Supportato';
+        badge.title = "Il tuo telefono permette di programmare i promemoria nativi.";
+    } else {
+        badge.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color: #da3633;"></i> Background: Limitato';
+        badge.title = "Il tuo browser non supporta la chiusura totale. Tieni l'app aperta in background.";
+    }
+}
+
+updateSupportStatus();
+
+// CONTROLLA QUANDO L'APP TORNA IN PRIMO PIANO
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        console.log("App tornata visibile, controllo promemoria...");
+        checkReminders();
+    }
+});
+
 function getReminderLabel(minutes) {
     if (minutes == 60) return '1 ora prima';
     if (minutes == 360) return '6 ore prima';
@@ -302,9 +328,9 @@ function scheduleBackgroundReminder(task) {
     }
 }
 
-// Controlla i promemoria all'avvio e poi ogni 5 minuti
-setTimeout(checkReminders, 3000);
-setInterval(checkReminders, 5 * 60 * 1000);
+// Controlla i promemoria all'avvio e poi ogni minuto per massima precisione
+setTimeout(checkReminders, 2000);
+setInterval(checkReminders, 60 * 1000);
 
 // =========================================================
 // CORE FUNCTIONS
