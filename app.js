@@ -406,9 +406,14 @@ function editTask(id) {
 // =========================================================
 
 async function prioritizeWithAI() {
+    if (isAiCooldown) {
+        showToast("IA in pausa tecnica. Attendi qualche secondo.", "warning");
+        return;
+    }
+
     const apiKey = localStorage.getItem('gemini-api-key');
     if (!apiKey) {
-        showToast("Inserisci e salva la tua API Key di Google Gemini nel campo in alto prima di usare l'Intelligenza Artificiale!", "warning");
+        showToast("Inserisci e salva la tua API Key nelle impostazioni!", "warning");
         return;
     }
 
@@ -419,7 +424,7 @@ async function prioritizeWithAI() {
 
     const uncompletedTasks = tasks.filter(t => !t.completed);
     if (uncompletedTasks.length === 0) {
-        showToast("Tutti i task sono già completati! Aggiungine di nuovi.", "info");
+        showToast("Tutti i task sono già completati!", "info");
         return;
     }
 
@@ -427,120 +432,49 @@ async function prioritizeWithAI() {
     taskList.style.display = 'none';
     loader.classList.remove('hidden');
     aiSortBtn.disabled = true;
-    aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Connessione ai server Google...`;
+    aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analisi in corso...`;
 
-    // Costruiamo la domanda (prompt) per Gemini con le date
     const taskData = uncompletedTasks.map(t => ({
         id: t.id,
         text: t.text,
         scadenza: t.dueDate || "Nessuna"
     }));
 
-    const promptText = `
-Sei un assistente per la produttività esperto. Analizza questi task e assegna una priorità (1=Alta urgenza/importanza, 2=Media, 3=Bassa).
-IMPORTANTE: Tieni conto delle date di scadenza. Un task con scadenza vicina o passata deve avere priorità alta (1 o 2).
-Per ogni task aggiungi una brevissima motivazione (max 10 parole) spiegando la priorità in base a urgenza e data.
-Rispondi ESATTAMENTE e SOLO con un array JSON valido, NIENTE formattazione markdown.
-
-Esempio output: [{"id":"123", "priority":1, "aiReasoning":"Scade oggi, molto urgente"}]
-
-Task da analizzare:
-${JSON.stringify(taskData)}
-`;
+    const promptText = `Analizza questi task e assegna una priorità (1=Alta, 2=Media, 3=Bassa). Considera le scadenze vicine come priorità 1. Rispondi solo con un array JSON: [{"id":"123", "priority":1, "aiReasoning":"Motivo breve"}] \n\n Task: ${JSON.stringify(taskData)}`;
 
     try {
-        // Cooldown check
-        if (isAiCooldown) {
-            showToast("L'IA è in pausa per riposare la quota Google. Attendi il timer.", "warning");
-            return;
-        }
+        // Usa il modello salvato o quello standard flash
+        const modelName = localStorage.getItem('gemini-model-name') || 'models/gemini-1.5-flash';
 
-        const apiKey = localStorage.getItem('gemini-api-key');
-        if (!apiKey) {
-            showToast("Inserisci la tua API Key nelle impostazioni.", "warning");
-            openSettings();
-            return;
-        }
-
-        aiSortBtn.disabled = true;
-        loader.classList.remove('hidden');
-        taskList.style.display = 'none';
-
-        // 1. SCOPERTA DINAMICA DEL MODELLO (Uso cache se disponibile)
-        if (!discoveredModelName) {
-            console.log("Ricerca modello in corso...");
-            aiSortBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass fa-spin"></i> Ricerca modello...`;
-            try {
-                const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-                if (modelsRes.ok) {
-                    const modelsData = await modelsRes.json();
-                    const validModels = modelsData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
-                    const bestModel = validModels.find(m => m.name.includes('gemini-1.5-flash')) ||
-                        validModels.find(m => m.name.includes('gemini-pro')) ||
-                        validModels[0];
-                    discoveredModelName = bestModel.name;
-                    localStorage.setItem('gemini-model-name', discoveredModelName);
-                }
-            } catch (e) {
-                console.warn("Errore discovery, uso fallback standard.");
-                discoveredModelName = 'models/gemini-1.5-flash';
-            }
-        }
-
-        const modelName = discoveredModelName || 'models/gemini-1.5-flash';
-
-        aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analisi in corso...`;
-
-        async function callGemini(retries = 3) {
+        async function callGemini(retries = 2) {
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: { temperature: 0.1 }
+                    generationConfig: { temperature: 0.2 }
                 })
             });
 
-            // Errore Quota (429)
             if (response.status === 429 && retries > 0) {
-                const waitTime = 25000; // 25 secondi
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Limite Google: attesa 25s...`;
-                await new Promise(r => setTimeout(r, waitTime));
-                return callGemini(retries - 1);
-            }
-
-            // Errore Server (5xx)
-            if (response.status >= 500 && retries > 0) {
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Google occupato, riprovo...`;
-                await new Promise(r => setTimeout(r, 3000));
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Limite raggiunto, attendo 10s...`;
+                await new Promise(r => setTimeout(r, 10000));
                 return callGemini(retries - 1);
             }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                const errorMessage = errorData.error?.message || "Errore sconosciuto";
-
-                // Se Google risponde che la quota è finita
-                if (response.status === 429) {
-                    throw new Error("Hai esaurito le richieste gratuite per questo minuto (o per oggi). Google ti ha bloccato temporaneamente. Riprova tra 60 secondi.");
-                }
-
-                throw new Error(`Google dice: ${errorMessage}`);
+                throw new Error(errorData.error?.message || "Errore Google API");
             }
 
             return response.json();
         }
 
         const data = await callGemini();
-
-        // Estrai il testo della risposta AI
         const aiResponseText = data.candidates[0].content.parts[0].text;
-
-        // Pulizia eventuale del JSON
         const cleanJson = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
         const aiResults = JSON.parse(cleanJson);
 
-        // Aggiorna la nostra vera lista dei task locale
         aiResults.forEach(result => {
             const taskIndex = tasks.findIndex(t => t.id === result.id);
             if (taskIndex !== -1) {
@@ -549,7 +483,6 @@ ${JSON.stringify(taskData)}
             }
         });
 
-        // Ordinamento dinamico (Priorità 1 in alto)
         tasks.sort((a, b) => {
             if (a.completed !== b.completed) return a.completed ? 1 : -1;
             if (a.priority !== b.priority) return (a.priority || 4) - (b.priority || 4);
@@ -557,21 +490,20 @@ ${JSON.stringify(taskData)}
         });
 
     } catch (error) {
-        console.error("Errore Dettagliato:", error);
-        showToast("Ops! Qualcosa è andato storto: " + error.message, "error");
+        console.error("AI Error:", error);
+        showToast("Ops! Google è occupato: " + error.message, "error");
     } finally {
-        // UX: Nascondi loader
         loader.classList.add('hidden');
         taskList.style.display = 'flex';
 
-        // Avviamento Cooldown 20s per proteggere la quota
+        // Cooldown ridotto a 10s
         isAiCooldown = true;
-        let cooldownTime = 20;
-
+        let cooldownTime = 10;
+        
         const updateCooldownBtn = () => {
             if (cooldownTime > 0) {
                 aiSortBtn.disabled = true;
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-clock"></i> IA in pausa (${cooldownTime}s)`;
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-clock"></i> Pausa (${cooldownTime}s)`;
                 cooldownTime--;
                 setTimeout(updateCooldownBtn, 1000);
             } else {
@@ -580,7 +512,7 @@ ${JSON.stringify(taskData)}
                 aiSortBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI';
             }
         };
-
+        
         updateCooldownBtn();
         renderTasks();
     }
