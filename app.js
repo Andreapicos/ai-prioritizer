@@ -450,7 +450,25 @@ ${JSON.stringify(taskData)}
 `;
 
     try {
-        const modelName = 'models/gemini-1.5-flash';
+        // 1. SCOPERTA DINAMICA DEL MODELLO
+        // Chiediamo a Google quali modelli sono disponibili per questa specifica API Key
+        aiSortBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass fa-spin"></i> Ricerca modello...`;
+
+        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!modelsRes.ok) throw new Error("API Key non valida o non autorizzata per Gemini.");
+
+        const modelsData = await modelsRes.json();
+        const validModels = modelsData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+
+        if (validModels.length === 0) throw new Error("Nessun modello di generazione trovato per questa chiave.");
+
+        // Scegliamo il miglior modello disponibile (flash è più veloce ed economico)
+        const bestModel = validModels.find(m => m.name.includes('gemini-1.5-flash')) ||
+            validModels.find(m => m.name.includes('gemini-pro')) ||
+            validModels[0];
+
+        const modelName = bestModel.name;
+        console.log("Modello selezionato:", modelName);
 
         aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analisi in corso...`;
 
