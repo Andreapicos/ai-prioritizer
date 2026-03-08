@@ -1,14 +1,13 @@
-// =========================================================
-// AI TASK PRIORITIZER LOGIC
-// =========================================================
-
-// State (Carica dal LocalStorage se esiste, altrimenti usa un array vuoto)
+// State
 let tasks = JSON.parse(localStorage.getItem('ai-tasks')) || [];
+let discoveredModelName = null;
+let isAiCooldown = false;
 
 // DOM Elements
 const taskInput = document.getElementById('task-input');
 const addBtn = document.getElementById('add-btn');
 const aiSortBtn = document.getElementById('ai-sort-btn');
+const emptyState = document.getElementById('empty-state');
 const taskList = document.getElementById('task-list');
 const taskCount = document.getElementById('task-count');
 const loader = document.getElementById('loader');
@@ -450,25 +449,44 @@ ${JSON.stringify(taskData)}
 `;
 
     try {
-        // 1. SCOPERTA DINAMICA DEL MODELLO
-        // Chiediamo a Google quali modelli sono disponibili per questa specifica API Key
-        aiSortBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass fa-spin"></i> Ricerca modello...`;
+        // Cooldown check
+        if (isAiCooldown) {
+            showToast("Attendi qualche secondo prima di riprovare (limite Google).", "warning");
+            return;
+        }
 
-        const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-        if (!modelsRes.ok) throw new Error("API Key non valida o non autorizzata per Gemini.");
+        const apiKey = localStorage.getItem('gemini-api-key');
+        if (!apiKey) {
+            showToast("Per favore, inserisci la tua API Key nelle impostazioni.", "warning");
+            openSettings();
+            return;
+        }
 
-        const modelsData = await modelsRes.json();
-        const validModels = modelsData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+        aiSortBtn.disabled = true;
+        loader.classList.remove('hidden');
+        taskList.style.display = 'none';
 
-        if (validModels.length === 0) throw new Error("Nessun modello di generazione trovato per questa chiave.");
+        // 1. SCOPERTA DINAMICA DEL MODELLO (Se non già in memoria)
+        if (!discoveredModelName) {
+            aiSortBtn.innerHTML = `<i class="fa-solid fa-magnifying-glass fa-spin"></i> Ricerca modello...`;
+            try {
+                const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+                if (modelsRes.ok) {
+                    const modelsData = await modelsRes.json();
+                    const validModels = modelsData.models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+                    const bestModel = validModels.find(m => m.name.includes('gemini-1.5-flash')) ||
+                        validModels.find(m => m.name.includes('gemini-pro')) ||
+                        validModels[0];
+                    discoveredModelName = bestModel.name;
+                }
+            } catch (e) {
+                console.warn("Errore discovery, uso fallback:", e);
+                discoveredModelName = 'models/gemini-1.5-flash';
+            }
+        }
 
-        // Scegliamo il miglior modello disponibile (flash è più veloce ed economico)
-        const bestModel = validModels.find(m => m.name.includes('gemini-1.5-flash')) ||
-            validModels.find(m => m.name.includes('gemini-pro')) ||
-            validModels[0];
-
-        const modelName = bestModel.name;
-        console.log("Modello selezionato:", modelName);
+        const modelName = discoveredModelName || 'models/gemini-1.5-flash';
+        console.log("Utilizzo modello:", modelName);
 
         aiSortBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Analisi in corso...`;
 
@@ -484,8 +502,8 @@ ${JSON.stringify(taskData)}
 
             // Se abbiamo superato il limite di quota (429)
             if (response.status === 429 && retries > 0) {
-                const waitTime = 15000; // 15 secondi
-                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Limite Google raggiunto, attendo 15s...`;
+                const waitTime = 20000; // 20 secondi per dare respiro a Google
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-hourglass-half fa-spin"></i> Limite Google raggiunto, attendo 20s...`;
                 await new Promise(r => setTimeout(r, waitTime));
                 return callGemini(retries - 1);
             }
@@ -503,7 +521,7 @@ ${JSON.stringify(taskData)}
                 const errorMessage = errorData.error?.message || "Errore sconosciuto";
 
                 if (errorCode === "RESOURCE_EXHAUSTED" || response.status === 429) {
-                    throw new Error("Hai superato il limite gratuito di Google (20 richieste al minuto). Attendi almeno 60 secondi prima di riprovare.");
+                    throw new Error("Hai superato il limite gratuito di Google (20 richieste al minuto). Attendi un minuto prima di riprovare.");
                 }
 
                 throw new Error(`Google dice: ${errorMessage}`);
@@ -541,13 +559,28 @@ ${JSON.stringify(taskData)}
         console.error("Errore Dettagliato:", error);
         showToast("Ops! Qualcosa è andato storto: " + error.message, "error");
     } finally {
-        // UX: Nascondi loader e ripristina bottone
+        // UX: Nascondi loader
         loader.classList.add('hidden');
         taskList.style.display = 'flex';
-        aiSortBtn.disabled = false;
-        aiSortBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI';
 
-        // Mostra a schermo i task aggiornati 
+        // Avviamento Cooldown 20s per proteggere la quota
+        isAiCooldown = true;
+        let cooldownTime = 20;
+
+        const updateCooldownBtn = () => {
+            if (cooldownTime > 0) {
+                aiSortBtn.disabled = true;
+                aiSortBtn.innerHTML = `<i class="fa-solid fa-clock"></i> IA in pausa (${cooldownTime}s)`;
+                cooldownTime--;
+                setTimeout(updateCooldownBtn, 1000);
+            } else {
+                isAiCooldown = false;
+                aiSortBtn.disabled = false;
+                aiSortBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Riordina con AI';
+            }
+        };
+
+        updateCooldownBtn();
         renderTasks();
     }
 }
